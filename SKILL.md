@@ -7,23 +7,36 @@ description: Drive blowhive — the AI content strategist that learns a business
 
 blowhive is not a writing tool: each workspace has a **Business Brain** (researched identity, competitors, voice, topic areas) and every article is written from real web sources with inline citations. Your job is to drive the pipeline — never to write article prose yourself.
 
-## Setup (once)
+## Setup (once) — the connect flow
 
-1. Ask the user for their **blowhive API key** (`bh_live_…`) — created in the app under **API & MCP**. Never echo the full key back.
-2. Ask which base URL to use if unknown: production `https://blowhive.com`, or a self-hosted/dev URL like `http://localhost:3000`.
+No manual key copying. Connect the user's account like this:
 
-Prefer the MCP server when the client supports it:
+1. Determine the base URL: production `https://blowhive.com`, or the user's self-hosted/dev URL (e.g. `http://localhost:3000`). Ask if unknown.
+2. Request a connect code (no auth needed):
+
+```bash
+curl -s -X POST <BASE_URL>/api/connect/start \
+  -H "content-type: application/json" \
+  -d '{"client_name": "Claude"}'
+# → { user_code, verification_url, poll_token, poll_url, interval_seconds, expires_in_seconds }
+```
+
+3. **Send the user to `verification_url`** and tell them: "Open this link, sign in to blowhive, and click **Approve access** (code `<user_code>`)." They choose the workspace and whether you may publish.
+4. **Poll** `poll_url` every `interval_seconds` with `{"poll_token": "..."}` until:
+   - `{"status": "approved", "api_key": "bh_live_…", "mcp_url": ..., "api_base": ...}` → save the key for this session and proceed. The key is delivered exactly once — store it immediately, never echo it in full.
+   - `"denied"` → the user declined; stop.
+   - `"expired"` → start over from step 2.
+
+If the user already has a `bh_live_` key, accept it directly and skip the flow.
+
+With the key, prefer MCP when the client supports it:
 
 ```bash
 claude mcp add --transport http blowhive <BASE_URL>/api/mcp \
   --header "Authorization: Bearer bh_live_…"
 ```
 
-Otherwise use the REST API directly (same key):
-
-```bash
-curl -H "Authorization: Bearer bh_live_…" <BASE_URL>/api/v1/workspace
-```
+Otherwise call the REST API directly with `Authorization: Bearer bh_live_…`.
 
 ## The workflow (follow this order)
 
