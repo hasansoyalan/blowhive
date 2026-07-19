@@ -21,9 +21,9 @@ curl -s -X POST <BASE_URL>/api/connect/start \
 # → { user_code, verification_url, poll_token, poll_url, interval_seconds, expires_in_seconds }
 ```
 
-3. **Send the user to `verification_url`** and tell them: "Open this link, sign in to blowhive, and click **Approve access** (code `<user_code>`)." They choose the workspace and whether you may publish.
+3. **Send the user to `verification_url`** and tell them: "Open this link, sign in to blowhive, and click **Approve access** (code `<user_code>`)." They pick which website this is for (or create a new one — including pre-launch projects with no site yet).
 4. **Poll** `poll_url` every `interval_seconds` with `{"poll_token": "..."}` until:
-   - `{"status": "approved", "api_key": "bh_live_…", "mcp_url": ..., "api_base": ...}` → save the key for this session and proceed. The key is delivered exactly once — store it immediately, never echo it in full.
+   - `{"status": "approved", "api_key": "bh_live_…", "mcp_url": ..., "api_base": ..., "workspace": {name, website_url, prelaunch, knowledge_pct}}` → save the key for this session and proceed. The key is delivered exactly once — store it immediately, never echo it in full. Use `workspace` to decide the next step: `prelaunch: true` → ask the user to describe the project and onboard with `{description}`; `website_url` present or user gives one → onboard with `{website_url}`; `knowledge_pct` ≥ 60 → brain already exists, go straight to content.
    - `"denied"` → the user declined; stop.
    - `"expired"` → start over from step 2.
 
