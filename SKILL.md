@@ -38,19 +38,58 @@ claude mcp add --transport http blowhive <BASE_URL>/api/mcp \
 
 Otherwise call the REST API directly with `Authorization: Bearer bh_live_…`.
 
-## The workflow (follow this order)
+## After connecting — what to do next
 
-1. **Ground yourself first**: `read_workspace` (MCP) or `GET /v1/workspace` — the business identity, voice and topic areas. Every suggestion you make must fit this brain.
-   - **New workspace with a live site?** Ask for the website and run `onboard_workspace` / `POST /v1/onboard` with `{website_url, socials?}`. Crawls, researches identity/competitors/voice/topic areas, configures everything and generates a scored title backlog (3–5 min; poll `check_job` and narrate). Everything remains editable in the blowhive app.
-   - **Pre-launch, no website yet?** Ask the user to describe the project in their own words (what it is, who it's for, what makes it different) and call onboard with `{description, project_name?}`. In ~1 min this builds a **provisional brain** (`knowledge_pct` 60) plus one starter title and a starter draft in their review queue. **When their site launches**, call onboard again with `{website_url}` — provisional brains upgrade to full research without `force`.
-   - Backlog running dry later? `discover_titles` / `POST /v1/titles/discover` researches the live web and adds 8–12 fresh scored titles.
-2. **Pick or add a title**: `list_titles` / `GET /v1/titles` shows the scored idea backlog. Prefer high `business_value` + `seo_score`. Add new ideas with `add_title` / `POST /v1/titles` — titles must be specific and honest, no clickbait.
-3. **Start the article**: `create_article` / `POST /v1/articles` with `title_id` (or a new `title`). This runs asynchronously: outline → live web source research → cited draft → quality checks. Typical duration 3–6 minutes.
-4. **Poll**: `check_job` / `GET /v1/jobs/{id}` every 20–30 seconds. Report progress steps to the user ("researching sources", "writing in your brand voice"…). Stop polling on `succeeded` or `failed`.
-5. **Report the draft**: fetch it with `read_article` / `GET /v1/articles/{id}` — share the title, word count, SEO/readability scores and how many cited sources it used. The draft waits in the user's review queue.
-6. **Approval & publishing**:
-   - `approve_article` runs the 10-check quality suite and approves only if blocking checks pass.
-   - `publish_article` (optionally with `at` for scheduling). Connect-flow keys include the publish scope, but **always get the user's explicit go-ahead in conversation before publishing** — show them the draft summary first. Manually-created keys may lack the scope (`insufficient_scope`) — then direct the user to publish in the app.
+Branch on the `workspace` object from the poll response (or `read_workspace`):
+
+- **`prelaunch: true`** → the user told us their site isn't published. **Accept that and move forward — ask NO questions about the business.** Say you're connected and offer the thing that helps them right now: **wire their project's blog to blowhive** (next section) so published articles flow in automatically once content exists. Do not run onboarding.
+- **User announces the site is live / gives a domain** (now or in any later session) → run `onboard_workspace` / `POST /v1/onboard` with `{website_url}`. This crawls the site, builds the Business Brain and a scored title backlog (3–5 min; poll `check_job` and narrate). They can also do this themselves in the blowhive app under Settings.
+- **`knowledge_pct` ≥ 60** → the brain exists; go straight to the content workflow below.
+
+## Blog integration (do this for pre-launch projects)
+
+The user is building their site right now — add a blowhive-powered blog to their codebase so it's ready before launch. Adapt to their framework; the pattern is: **server-side fetch of published articles, key kept in env, revalidate periodically**.
+
+1. Add env vars (never commit the key, never expose it client-side):
+
+```bash
+BLOWHIVE_API_KEY=bh_live_…
+BLOWHIVE_API_BASE=<api_base from the connect response>
+```
+
+2. A tiny server-side client:
+
+```ts
+// lib/blowhive.ts
+const BASE = process.env.BLOWHIVE_API_BASE!;
+async function bh<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { authorization: `Bearer ${process.env.BLOWHIVE_API_KEY}` },
+    next: { revalidate: 3600 }, // rebuild content hourly (Next.js; adapt per framework)
+  });
+  if (!res.ok) throw new Error(`blowhive ${res.status}`);
+  return res.json();
+}
+export const listPublished = () =>
+  bh<{ data: Array<{ id: string; slug: string; title: string; published_at: string }> }>(
+    "/articles?status=published");
+export const getArticle = (id: string) =>
+  bh<{ title: string; html: string; meta_title: string; meta_description: string; schema_markup: unknown }>(
+    `/articles/${id}`);
+```
+
+3. Blog pages: an index over `listPublished()` and a detail page that maps slug → id from the list, renders `html`, and injects `meta_title` / `meta_description` / `schema_markup` (JSON-LD) into the head. Static generation with revalidation is ideal — content syncs at build/revalidate time with no client-side key exposure.
+
+4. Empty state: the list is empty until the user launches + onboards — render a tasteful "no posts yet". The moment content publishes in blowhive, their blog fills on the next revalidation.
+
+## The content workflow (once the brain exists)
+
+1. **Ground yourself**: `read_workspace` — identity, voice, topic areas. Every suggestion must fit this brain.
+2. **Pick or add a title**: `list_titles` shows the scored backlog (prefer high `business_value` + `seo_score`); `add_title` for new ideas — specific and honest, no clickbait. Backlog dry? `discover_titles` researches the live web for 8–12 fresh scored titles.
+3. **Start the article**: `create_article` with `title_id` (or a new `title`). Async: outline → live web source research → cited draft → quality checks (3–6 min).
+4. **Poll** `check_job` every 20–30s and narrate progress ("researching sources", "writing in your brand voice"…).
+5. **Report the draft**: `read_article` — title, word count, SEO/readability scores, cited source count. It waits in the user's review queue.
+6. **Approval & publishing**: `approve_article` runs the 10-check suite. `publish_article` (optionally `{at}` to schedule) — connect keys carry the scope, but **always get the user's explicit go-ahead in conversation first**; show the draft summary, then ask. Published articles appear on their integrated blog automatically.
 
 ## Hard rules
 
