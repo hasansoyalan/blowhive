@@ -50,12 +50,12 @@ Otherwise call the REST API directly with `Authorization: Bearer bh_live_…`.
 5. **Report the draft**: fetch it with `read_article` / `GET /v1/articles/{id}` — share the title, word count, SEO/readability scores and how many cited sources it used. The draft waits in the user's review queue.
 6. **Approval & publishing**:
    - `approve_article` runs the 10-check quality suite and approves only if blocking checks pass.
-   - `publish_article` (optionally with `at` for scheduling) **only works if the key has the `publish` scope**. If it fails with `insufficient_scope`, tell the user to review and publish in the blowhive app — that is by design, not an error.
+   - `publish_article` (optionally with `at` for scheduling). Connect-flow keys include the publish scope, but **always get the user's explicit go-ahead in conversation before publishing** — show them the draft summary first. Manually-created keys may lack the scope (`insufficient_scope`) — then direct the user to publish in the app.
 
 ## Hard rules
 
 - **Never fabricate content, statistics or sources.** blowhive's writer cites stored sources; your role is orchestration and reporting.
-- **Nothing ships without the human** unless their key explicitly carries the `publish` scope. Default to requesting their review.
+- **Never publish without the user's explicit go-ahead in this conversation**, even when the key allows it. Show the draft summary, then ask.
 - **Respect quota errors** (`quota_exceeded`): tell the user their plan's monthly article limit is reached — don't retry.
 - Rate limits are per plan (`X-RateLimit-*` headers). On 429, wait and retry once.
 
