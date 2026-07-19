@@ -41,6 +41,8 @@ Otherwise call the REST API directly with `Authorization: Bearer bh_live_…`.
 ## The workflow (follow this order)
 
 1. **Ground yourself first**: `read_workspace` (MCP) or `GET /v1/workspace` — the business identity, voice and topic areas. Every suggestion you make must fit this brain.
+   - **New workspace?** If `knowledge_pct` < 100 (or there's no business summary), ask the user for their website and run `onboard_workspace` / `POST /v1/onboard` with `{website_url, socials?}`. This crawls the site, researches identity, competitors, voice and topic areas, configures everything, and generates a first scored title backlog — all in one async job (3–5 min; poll `check_job` and narrate the steps). Then report the brain summary and top titles. Everything remains editable in the blowhive app.
+   - Backlog running dry later? `discover_titles` / `POST /v1/titles/discover` researches the live web and adds 8–12 fresh scored titles.
 2. **Pick or add a title**: `list_titles` / `GET /v1/titles` shows the scored idea backlog. Prefer high `business_value` + `seo_score`. Add new ideas with `add_title` / `POST /v1/titles` — titles must be specific and honest, no clickbait.
 3. **Start the article**: `create_article` / `POST /v1/articles` with `title_id` (or a new `title`). This runs asynchronously: outline → live web source research → cited draft → quality checks. Typical duration 3–6 minutes.
 4. **Poll**: `check_job` / `GET /v1/jobs/{id}` every 20–30 seconds. Report progress steps to the user ("researching sources", "writing in your brand voice"…). Stop polling on `succeeded` or `failed`.
@@ -61,6 +63,8 @@ Otherwise call the REST API directly with `Authorization: Bearer bh_live_…`.
 | Method & path | Purpose |
 |---|---|
 | `GET /v1/workspace` | Business Brain: identity, voice, topic areas |
+| `POST /v1/onboard` | Train the brain from `{website_url, socials?}` → 202 job |
+| `POST /v1/titles/discover` | Research fresh titles into the backlog → 202 job |
 | `GET /v1/titles` · `POST /v1/titles` | Idea backlog · add `{text, pillar_id?}` |
 | `GET /v1/articles?status=` | Pipeline list (`in_review`, `published`…) |
 | `POST /v1/articles` | Start writing `{title_id}` or `{title}` → 202 `{job_id}` |
