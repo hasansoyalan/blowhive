@@ -75,7 +75,10 @@ export const listPublished = () =>
     "/articles?status=published");
 export const getArticle = (id: string) =>
   bh<{ title: string; html: string; meta_title: string; meta_description: string; schema_markup: unknown }>(
-    `/articles/${id}`);
+    `/articles/${id}?format=html`);
+// Building a custom layout (own FAQ accordion, keyword tags, per-section
+// components)? Use ?format=structured instead: { seo: {meta_keywords…},
+// intro, sections: [{heading, html}], faq: [{question, answer_html}], cta }.
 ```
 
 3. Blog pages: an index over `listPublished()` and a detail page that maps slug → id from the list, renders `html`, and injects `meta_title` / `meta_description` / `schema_markup` (JSON-LD) into the head. Static generation with revalidation is ideal — content syncs at build/revalidate time with no client-side key exposure.
@@ -108,7 +111,7 @@ export const getArticle = (id: string) =>
 | `GET /v1/titles` · `POST /v1/titles` | Idea backlog · add `{text, pillar_id?}` |
 | `GET /v1/articles?status=` | Pipeline list (`in_review`, `published`…) |
 | `POST /v1/articles` | Start writing `{title_id}` or `{title}` → 202 `{job_id}` |
-| `GET /v1/articles/{id}` | Full article: markdown, html, meta, sources |
+| `GET /v1/articles/{id}?format=` | Article in `md`, `html`, `structured` (SEO meta + keywords, intro, sections, separated FAQ, CTA) or `full` (default: md+html) |
 | `POST /v1/articles/{id}/approve` | Run checks + approve |
 | `POST /v1/articles/{id}/publish` | Publish now or `{at: ISO}` (publish scope) |
 | `GET /v1/jobs/{id}` | Async job status + progress steps |
